@@ -5,6 +5,7 @@
   "mixins": [
     "CraftingResultSlotMixin",
     "ItemEntityMixin",
+    "ItemMixin",
     "ItemStackMixin",
     "LivingEntityMixin",
     "PlayerEntityMixin",

@@ -19,7 +19,6 @@ import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
-import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -47,8 +46,6 @@ public abstract class ItemStackClientMixin {
     @Unique
     private boolean isTiered;
     @Unique
-    private boolean slotInfo;
-    @Unique
     private final Map<RegistryEntry<EntityAttribute>, List<EntityAttributeModifier>> tieredMap = new HashMap<>();
 
     @Inject(method = "appendAttributeModifiersTooltip", at = @At("HEAD"))
@@ -60,43 +57,26 @@ public abstract class ItemStackClientMixin {
             this.tieredMap.clear();
 
             for (AttributeModifierSlot attributeModifierSlot : AttributeModifierSlot.values()) {
-                MutableBoolean mutableBoolean = new MutableBoolean(false);
+                if (attributeModifierSlot == AttributeModifierSlot.ANY || attributeModifierSlot == AttributeModifierSlot.HAND) {
+                    continue;
+                }
                 this.applyAttributeModifier(attributeModifierSlot, (attribute, modifier) -> {
-                    List<EntityAttributeModifier> modifiers = this.tieredMap.computeIfAbsent(attribute, k -> new ArrayList<>());
                     if (modifier.value() > 0.0001D || modifier.value() < -0.0001D) {
+                        List<EntityAttributeModifier> modifiers = this.tieredMap.computeIfAbsent(attribute, k -> new ArrayList<>());
                         modifiers.add(modifier);
                     }
-                    mutableBoolean.setValue(true);
                 });
-                if (mutableBoolean.getValue()) {
-                    break;
-                }
             }
         } else {
             this.isTiered = false;
         }
-        this.slotInfo = true;
-    }
-
-    @Inject(method = "appendAttributeModifiersTooltip", at = @At(value = "INVOKE", target = "Lnet/minecraft/item/ItemStack;applyAttributeModifier(Lnet/minecraft/component/type/AttributeModifierSlot;Ljava/util/function/BiConsumer;)V"), cancellable = true)
-    private void appendAttributeModifiersTooltipTwoMixin(Consumer<Text> textConsumer, @Nullable PlayerEntity player, CallbackInfo info) {
-        if (this.isTiered && !this.slotInfo) {
-            info.cancel();
-        }
-    }
-
-    @Inject(method = "method_57370", at = @At(value = "INVOKE", target = "Ljava/util/function/Consumer;accept(Ljava/lang/Object;)V", ordinal = 0))
-    private void method_57370Mixin(MutableBoolean mutableBoolean, Consumer<Text> consumer, AttributeModifierSlot attributeModifierSlot, PlayerEntity playerEntity, RegistryEntry<EntityAttribute> attribute, EntityAttributeModifier modifier, CallbackInfo info) {
-        if (this.isTiered) {
-            this.slotInfo = false;
-        }
     }
 
     @Inject(method = "appendAttributeModifierTooltip(Ljava/util/function/Consumer;Lnet/minecraft/entity/player/PlayerEntity;Lnet/minecraft/registry/entry/RegistryEntry;Lnet/minecraft/entity/attribute/EntityAttributeModifier;)V", at = @At(value = "INVOKE", target = "Ljava/util/function/Consumer;accept(Ljava/lang/Object;)V", ordinal = 0), locals = LocalCapture.CAPTURE_FAILSOFT, cancellable = true)
-    private void appendAttributeModifierTooltipMixin(Consumer<Text> textConsumer, @Nullable PlayerEntity player, RegistryEntry<EntityAttribute> attribute, EntityAttributeModifier modifier, CallbackInfo info, double d, boolean bl, double e) {
+    private void appendAttributeModifierTooltipEqualsMixin(Consumer<Text> textConsumer, @Nullable PlayerEntity player, RegistryEntry<EntityAttribute> attribute, EntityAttributeModifier modifier, CallbackInfo info, double d, boolean bl, double e) {
         if (this.isTiered && this.tieredMap.containsKey(attribute)) {
             List<EntityAttributeModifier> list = this.tieredMap.get(attribute);
-            if (list.size() > 1 && list.get(list.size() - 1).idMatches(modifier.id())) {
+            if (!list.isEmpty() && !list.get(0).idMatches(modifier.id())) {
                 info.cancel();
                 return;
             }
@@ -131,10 +111,10 @@ public abstract class ItemStackClientMixin {
     }
 
     @Inject(method = "appendAttributeModifierTooltip(Ljava/util/function/Consumer;Lnet/minecraft/entity/player/PlayerEntity;Lnet/minecraft/registry/entry/RegistryEntry;Lnet/minecraft/entity/attribute/EntityAttributeModifier;)V", at = @At(value = "INVOKE", target = "Ljava/util/function/Consumer;accept(Ljava/lang/Object;)V", ordinal = 1), locals = LocalCapture.CAPTURE_FAILSOFT, cancellable = true)
-    private void appendAttributeModifierTooltipTwoMixin(Consumer<Text> textConsumer, @Nullable PlayerEntity player, RegistryEntry<EntityAttribute> attribute, EntityAttributeModifier modifier, CallbackInfo info, double d, boolean bl, double e) {
+    private void appendAttributeModifierTooltipPlusMixin(Consumer<Text> textConsumer, @Nullable PlayerEntity player, RegistryEntry<EntityAttribute> attribute, EntityAttributeModifier modifier, CallbackInfo info, double d, boolean bl, double e) {
         if (this.isTiered && this.tieredMap.containsKey(attribute)) {
             List<EntityAttributeModifier> list = this.tieredMap.get(attribute);
-            if (list.size() > 1 && list.get(list.size() - 1).idMatches(modifier.id())) {
+            if (!list.isEmpty() && !list.get(0).idMatches(modifier.id())) {
                 info.cancel();
                 return;
             }
@@ -168,10 +148,10 @@ public abstract class ItemStackClientMixin {
     }
 
     @Inject(method = "appendAttributeModifierTooltip(Ljava/util/function/Consumer;Lnet/minecraft/entity/player/PlayerEntity;Lnet/minecraft/registry/entry/RegistryEntry;Lnet/minecraft/entity/attribute/EntityAttributeModifier;)V", at = @At(value = "INVOKE", target = "Ljava/util/function/Consumer;accept(Ljava/lang/Object;)V", ordinal = 2), locals = LocalCapture.CAPTURE_FAILSOFT, cancellable = true)
-    private void appendAttributeModifierTooltipThreeMixin(Consumer<Text> textConsumer, @Nullable PlayerEntity player, RegistryEntry<EntityAttribute> attribute, EntityAttributeModifier modifier, CallbackInfo info, double d, boolean bl, double e) {
+    private void appendAttributeModifierTooltipTakeMixin(Consumer<Text> textConsumer, @Nullable PlayerEntity player, RegistryEntry<EntityAttribute> attribute, EntityAttributeModifier modifier, CallbackInfo info, double d, boolean bl, double e) {
         if (this.isTiered && this.tieredMap.containsKey(attribute)) {
             List<EntityAttributeModifier> list = this.tieredMap.get(attribute);
-            if (list.size() > 1 && list.get(list.size() - 1).idMatches(modifier.id())) {
+            if (!list.isEmpty() && !list.get(0).idMatches(modifier.id())) {
                 info.cancel();
                 return;
             }
@@ -224,4 +204,3 @@ public abstract class ItemStackClientMixin {
         }
     }
 }
-

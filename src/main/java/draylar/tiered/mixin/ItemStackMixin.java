@@ -68,7 +68,7 @@ public abstract class ItemStackMixin {
                     // required equipment slots
                     if (template.getRequiredEquipmentSlots() != null) {
                         for (EquipmentSlot reqSlot : template.getRequiredEquipmentSlots()) {
-                            if (AttributeModifierSlot.forEquipmentSlot(reqSlot) == slot) {
+                            if (slot.matches(reqSlot)) {
                                 template.realize(attributeModifierConsumer, reqSlot);
                             }
                         }
@@ -76,9 +76,11 @@ public abstract class ItemStackMixin {
 
                     // optional equipment slots
                     if (template.getOptionalEquipmentSlots() != null) {
-                        for (EquipmentSlot optSlot : template.getOptionalEquipmentSlots()) {
-                            if (AttributeModifierSlot.forEquipmentSlot(optSlot) == slot && Tiered.isPreferredEquipmentSlot(self, optSlot)) {
-                                template.realize(attributeModifierConsumer, optSlot);
+                        if (slot != AttributeModifierSlot.ANY && slot != AttributeModifierSlot.HAND) {
+                            for (EquipmentSlot optSlot : template.getOptionalEquipmentSlots()) {
+                                if (slot.matches(optSlot) && Tiered.isPreferredEquipmentSlot(self, optSlot)) {
+                                    template.realize(attributeModifierConsumer, optSlot);
+                                }
                             }
                         }
                     }
