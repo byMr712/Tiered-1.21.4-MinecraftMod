@@ -36,7 +36,7 @@ public abstract class ItemStackMixin {
                 potentialAttribute.getAttributes().forEach(template -> {
                     // required equipment slots
                     if (template.getRequiredEquipmentSlots() != null) {
-                        if (Arrays.asList(template.getRequiredEquipmentSlots()).contains(slot)) {
+                        if (Arrays.asList(template.getRequiredEquipmentSlots()).contains(slot) && Tiered.isPreferredEquipmentSlot(self, slot)) {
                             template.realize(attributeModifierConsumer, slot);
                         }
                     }
@@ -68,7 +68,7 @@ public abstract class ItemStackMixin {
                     // required equipment slots
                     if (template.getRequiredEquipmentSlots() != null) {
                         for (EquipmentSlot reqSlot : template.getRequiredEquipmentSlots()) {
-                            if (slot.matches(reqSlot)) {
+                            if (AttributeModifierSlot.forEquipmentSlot(reqSlot) == slot && Tiered.isPreferredEquipmentSlot(self, reqSlot)) {
                                 template.realize(attributeModifierConsumer, reqSlot);
                             }
                         }
@@ -76,11 +76,9 @@ public abstract class ItemStackMixin {
 
                     // optional equipment slots
                     if (template.getOptionalEquipmentSlots() != null) {
-                        if (slot != AttributeModifierSlot.ANY && slot != AttributeModifierSlot.HAND) {
-                            for (EquipmentSlot optSlot : template.getOptionalEquipmentSlots()) {
-                                if (slot.matches(optSlot) && Tiered.isPreferredEquipmentSlot(self, optSlot)) {
-                                    template.realize(attributeModifierConsumer, optSlot);
-                                }
+                        for (EquipmentSlot optSlot : template.getOptionalEquipmentSlots()) {
+                            if (AttributeModifierSlot.forEquipmentSlot(optSlot) == slot && Tiered.isPreferredEquipmentSlot(self, optSlot)) {
+                                template.realize(attributeModifierConsumer, optSlot);
                             }
                         }
                     }

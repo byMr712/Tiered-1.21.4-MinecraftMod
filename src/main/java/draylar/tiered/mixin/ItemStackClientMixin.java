@@ -20,6 +20,7 @@ import net.minecraft.text.MutableText;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
+import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -46,12 +47,14 @@ public abstract class ItemStackClientMixin {
     @Unique
     private boolean isTiered;
     @Unique
+    private boolean slotInfo;
+    @Unique
     private final Map<RegistryEntry<EntityAttribute>, List<EntityAttributeModifier>> tieredMap = new HashMap<>();
 
     /**
      * Pre-scan: collect all modifiers (base + tiered) for each attribute into tieredMap.
-     * Only runs for tiered items. Scans all specific equipment slots (excludes ANY/HAND
-     * to avoid duplicates from compound slots).
+     * Only runs for tiered items. Stops at the first slot that contains modifiers
+     * to avoid pulling in any secondary slot modifiers.
      */
     @Inject(method = "appendAttributeModifiersTooltip", at = @At("HEAD"))
     private void appendAttributeModifiersTooltipMixin(Consumer<Text> textConsumer, @Nullable PlayerEntity player, CallbackInfo info) {
@@ -62,20 +65,44 @@ public abstract class ItemStackClientMixin {
             this.tieredMap.clear();
 
             for (AttributeModifierSlot attributeModifierSlot : AttributeModifierSlot.values()) {
-                if (attributeModifierSlot == AttributeModifierSlot.ANY
-                        || attributeModifierSlot == AttributeModifierSlot.HAND
-                        || attributeModifierSlot == AttributeModifierSlot.ARMOR) {
-                    continue;
-                }
+                MutableBoolean mutableBoolean = new MutableBoolean(false);
                 this.applyAttributeModifier(attributeModifierSlot, (attribute, modifier) -> {
                     if (modifier.value() > 0.0001D || modifier.value() < -0.0001D) {
                         List<EntityAttributeModifier> modifiers = this.tieredMap.computeIfAbsent(attribute, k -> new ArrayList<>());
                         modifiers.add(modifier);
+                        mutableBoolean.setValue(true);
                     }
                 });
+                if (mutableBoolean.getValue()) {
+                    break;
+                }
             }
         } else {
             this.isTiered = false;
+        }
+        this.slotInfo = true;
+    }
+
+    /**
+     * Suppresses duplicate modifier sections (e.g. "When Worn:" after "When on Legs:").
+     * Once the primary slot header has been accepted, slotInfo becomes false,
+     * so any subsequent slot iteration is immediately cancelled.
+     */
+    @Inject(method = "appendAttributeModifiersTooltip", at = @At(value = "INVOKE", target = "Lnet/minecraft/item/ItemStack;applyAttributeModifier(Lnet/minecraft/component/type/AttributeModifierSlot;Ljava/util/function/BiConsumer;)V"), cancellable = true)
+    private void appendAttributeModifiersTooltipTwoMixin(Consumer<Text> textConsumer, @Nullable PlayerEntity player, CallbackInfo info) {
+        if (this.isTiered && !this.slotInfo) {
+            info.cancel();
+        }
+    }
+
+    /**
+     * When the first slot header is output in method_57370, mark slotInfo = false
+     * so that no further slot sections will be processed.
+     */
+    @Inject(method = "method_57370", at = @At(value = "INVOKE", target = "Ljava/util/function/Consumer;accept(Ljava/lang/Object;)V", ordinal = 0))
+    private void method_57370Mixin(MutableBoolean mutableBoolean, Consumer<Text> consumer, AttributeModifierSlot attributeModifierSlot, PlayerEntity playerEntity, RegistryEntry<EntityAttribute> attribute, EntityAttributeModifier modifier, CallbackInfo info) {
+        if (this.isTiered) {
+            this.slotInfo = false;
         }
     }
 

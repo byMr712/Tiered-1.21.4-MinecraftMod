@@ -50,6 +50,9 @@ public class Tiered implements ModInitializer {
         if (equippable != null) {
             return equippable.slot().equals(slot);
         }
+        if (stack.isOf(net.minecraft.item.Items.SHIELD)) {
+            return slot == EquipmentSlot.OFFHAND;
+        }
         return slot == EquipmentSlot.MAINHAND;
     }
 
