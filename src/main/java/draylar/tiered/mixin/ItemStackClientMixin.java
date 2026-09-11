@@ -12,6 +12,7 @@ import net.minecraft.entity.attribute.EntityAttribute;
 import net.minecraft.entity.attribute.EntityAttributeModifier;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.screen.ScreenTexts;
@@ -27,7 +28,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -48,6 +48,11 @@ public abstract class ItemStackClientMixin {
     @Unique
     private final Map<RegistryEntry<EntityAttribute>, List<EntityAttributeModifier>> tieredMap = new HashMap<>();
 
+    /**
+     * Pre-scan: collect all modifiers (base + tiered) for each attribute into tieredMap.
+     * Only runs for tiered items. Scans all specific equipment slots (excludes ANY/HAND
+     * to avoid duplicates from compound slots).
+     */
     @Inject(method = "appendAttributeModifiersTooltip", at = @At("HEAD"))
     private void appendAttributeModifiersTooltipMixin(Consumer<Text> textConsumer, @Nullable PlayerEntity player, CallbackInfo info) {
         ItemStack itemStack = (ItemStack) (Object) this;
@@ -57,7 +62,9 @@ public abstract class ItemStackClientMixin {
             this.tieredMap.clear();
 
             for (AttributeModifierSlot attributeModifierSlot : AttributeModifierSlot.values()) {
-                if (attributeModifierSlot == AttributeModifierSlot.ANY || attributeModifierSlot == AttributeModifierSlot.HAND) {
+                if (attributeModifierSlot == AttributeModifierSlot.ANY
+                        || attributeModifierSlot == AttributeModifierSlot.HAND
+                        || attributeModifierSlot == AttributeModifierSlot.ARMOR) {
                     continue;
                 }
                 this.applyAttributeModifier(attributeModifierSlot, (attribute, modifier) -> {
@@ -72,116 +79,115 @@ public abstract class ItemStackClientMixin {
         }
     }
 
-    @Inject(method = "appendAttributeModifierTooltip(Ljava/util/function/Consumer;Lnet/minecraft/entity/player/PlayerEntity;Lnet/minecraft/registry/entry/RegistryEntry;Lnet/minecraft/entity/attribute/EntityAttributeModifier;)V", at = @At(value = "INVOKE", target = "Ljava/util/function/Consumer;accept(Ljava/lang/Object;)V", ordinal = 0), locals = LocalCapture.CAPTURE_FAILSOFT, cancellable = true)
-    private void appendAttributeModifierTooltipEqualsMixin(Consumer<Text> textConsumer, @Nullable PlayerEntity player, RegistryEntry<EntityAttribute> attribute, EntityAttributeModifier modifier, CallbackInfo info, double d, boolean bl, double e) {
-        if (this.isTiered && this.tieredMap.containsKey(attribute)) {
-            List<EntityAttributeModifier> list = this.tieredMap.get(attribute);
-            if (!list.isEmpty() && !list.get(0).idMatches(modifier.id())) {
-                info.cancel();
-                return;
+    /**
+     * Replaces the entire appendAttributeModifierTooltip method for tiered items.
+     * This avoids CAPTURE_FAILSOFT issues — in 1.21.4 the StackMapTable marks 'bl'
+     * (slot 7) as 'top' after the if(bl) branch, causing LocalCapture to silently
+     * fail for ordinals 1 and 2. By injecting at HEAD and cancelling, we bypass
+     * the entire vanilla method and compute the tooltip ourselves.
+     */
+    @Inject(
+            method = "appendAttributeModifierTooltip(Ljava/util/function/Consumer;Lnet/minecraft/entity/player/PlayerEntity;Lnet/minecraft/registry/entry/RegistryEntry;Lnet/minecraft/entity/attribute/EntityAttributeModifier;)V",
+            at = @At("HEAD"),
+            cancellable = true
+    )
+    private void appendAttributeModifierTooltipMixin(Consumer<Text> textConsumer, @Nullable PlayerEntity player, RegistryEntry<EntityAttribute> attribute, EntityAttributeModifier modifier, CallbackInfo info) {
+        if (!this.isTiered || !this.tieredMap.containsKey(attribute)) {
+            return;
+        }
+
+        List<EntityAttributeModifier> list = this.tieredMap.get(attribute);
+
+        // Only the first modifier for this attribute renders the combined line.
+        // All subsequent modifiers are suppressed (their values are folded into the first line).
+        if (!list.isEmpty() && !list.get(0).idMatches(modifier.id())) {
+            info.cancel();
+            return;
+        }
+
+        // --- Reproduce vanilla appendAttributeModifierTooltip logic ---
+        double d = modifier.value();
+        boolean bl = false;
+
+        if (player != null) {
+            if (modifier.idMatches(Item.BASE_ATTACK_DAMAGE_MODIFIER_ID)) {
+                d += player.getAttributeBaseValue(EntityAttributes.ATTACK_DAMAGE);
+                bl = true;
+            } else if (modifier.idMatches(Item.BASE_ATTACK_SPEED_MODIFIER_ID)) {
+                d += player.getAttributeBaseValue(EntityAttributes.ATTACK_SPEED);
+                bl = true;
             }
-            MutableText text = ScreenTexts.space();
-            text.append(Text.translatable(
-                            "tiered.attribute.modifier.equals." + modifier.operation().getId(),
+        }
+
+        double e;
+        if (modifier.operation() == EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
+                || modifier.operation() == EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL) {
+            e = d * 100.0;
+        } else if (attribute.matches(EntityAttributes.KNOCKBACK_RESISTANCE)) {
+            e = d * 10.0;
+        } else {
+            e = d;
+        }
+
+        // --- Build tiered tooltip text ---
+        MutableText text;
+        Formatting baseColor;
+
+        if (bl) {
+            // "equals" format — absolute value with space prefix (attack damage / attack speed)
+            String translationKey = "tiered.attribute.modifier.equals." + modifier.operation().getId();
+            text = ScreenTexts.space();
+            text.append(Text.translatable(translationKey,
                             AttributeModifiersComponent.DECIMAL_FORMAT.format(e))
                     .formatted(Formatting.DARK_GREEN));
-            for (int i = 0; i < list.size(); i++) {
-                if (list.get(i).idMatches(modifier.id())) {
-                    continue;
-                }
-                EntityAttributeModifier tieredModifier = list.get(i);
-                double tieredValue;
-                if (tieredModifier.operation() == EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
-                        || tieredModifier.operation() == EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL) {
-                    tieredValue = tieredModifier.value() * 100.0;
-                } else if (attribute.matches(EntityAttributes.KNOCKBACK_RESISTANCE)) {
-                    tieredValue = tieredModifier.value() * 10.0;
-                } else {
-                    tieredValue = tieredModifier.value();
-                }
-                boolean addition = tieredValue > 0;
-                text.append(ScreenTexts.space());
-                text.append(Text.translatable("tiered.attribute.modifier", "(" + (addition ? "+" : "") + AttributeModifiersComponent.DECIMAL_FORMAT.format(tieredValue) + (tieredModifier.operation().getId() > 0 ? "%" : "") + ")").formatted(addition ? Formatting.DARK_GREEN : Formatting.RED));
-            }
-            text.append(ScreenTexts.space());
-            text.append(Text.translatable(attribute.value().getTranslationKey()).formatted(Formatting.DARK_GREEN));
-            textConsumer.accept(text);
-            info.cancel();
-        }
-    }
-
-    @Inject(method = "appendAttributeModifierTooltip(Ljava/util/function/Consumer;Lnet/minecraft/entity/player/PlayerEntity;Lnet/minecraft/registry/entry/RegistryEntry;Lnet/minecraft/entity/attribute/EntityAttributeModifier;)V", at = @At(value = "INVOKE", target = "Ljava/util/function/Consumer;accept(Ljava/lang/Object;)V", ordinal = 1), locals = LocalCapture.CAPTURE_FAILSOFT, cancellable = true)
-    private void appendAttributeModifierTooltipPlusMixin(Consumer<Text> textConsumer, @Nullable PlayerEntity player, RegistryEntry<EntityAttribute> attribute, EntityAttributeModifier modifier, CallbackInfo info, double d, boolean bl, double e) {
-        if (this.isTiered && this.tieredMap.containsKey(attribute)) {
-            List<EntityAttributeModifier> list = this.tieredMap.get(attribute);
-            if (!list.isEmpty() && !list.get(0).idMatches(modifier.id())) {
-                info.cancel();
-                return;
-            }
-            MutableText text = Text.translatable(
-                            "tiered.attribute.modifier.plus." + modifier.operation().getId(),
+            baseColor = Formatting.DARK_GREEN;
+        } else if (d > 0) {
+            // "plus" format — positive modifier
+            String translationKey = "tiered.attribute.modifier.plus." + modifier.operation().getId();
+            text = Text.translatable(translationKey,
                             AttributeModifiersComponent.DECIMAL_FORMAT.format(e))
                     .formatted(attribute.value().getFormatting(true));
-            for (int i = 0; i < list.size(); i++) {
-                if (list.get(i).idMatches(modifier.id())) {
-                    continue;
-                }
-                EntityAttributeModifier tieredModifier = list.get(i);
-                double tieredValue;
-                if (tieredModifier.operation() == EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
-                        || tieredModifier.operation() == EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL) {
-                    tieredValue = tieredModifier.value() * 100.0;
-                } else if (attribute.matches(EntityAttributes.KNOCKBACK_RESISTANCE)) {
-                    tieredValue = tieredModifier.value() * 10.0;
-                } else {
-                    tieredValue = tieredModifier.value();
-                }
-                boolean addition = tieredValue > 0;
-                text.append(ScreenTexts.space());
-                text.append(Text.translatable("tiered.attribute.modifier", "(" + (addition ? "+" : "") + AttributeModifiersComponent.DECIMAL_FORMAT.format(tieredValue) + (tieredModifier.operation().getId() > 0 ? "%" : "") + ")").formatted(addition ? Formatting.BLUE : Formatting.RED));
-            }
-            text.append(ScreenTexts.space());
-            text.append(Text.translatable(attribute.value().getTranslationKey()).formatted(attribute.value().getFormatting(true)));
-            textConsumer.accept(text);
-            info.cancel();
-        }
-    }
-
-    @Inject(method = "appendAttributeModifierTooltip(Ljava/util/function/Consumer;Lnet/minecraft/entity/player/PlayerEntity;Lnet/minecraft/registry/entry/RegistryEntry;Lnet/minecraft/entity/attribute/EntityAttributeModifier;)V", at = @At(value = "INVOKE", target = "Ljava/util/function/Consumer;accept(Ljava/lang/Object;)V", ordinal = 2), locals = LocalCapture.CAPTURE_FAILSOFT, cancellable = true)
-    private void appendAttributeModifierTooltipTakeMixin(Consumer<Text> textConsumer, @Nullable PlayerEntity player, RegistryEntry<EntityAttribute> attribute, EntityAttributeModifier modifier, CallbackInfo info, double d, boolean bl, double e) {
-        if (this.isTiered && this.tieredMap.containsKey(attribute)) {
-            List<EntityAttributeModifier> list = this.tieredMap.get(attribute);
-            if (!list.isEmpty() && !list.get(0).idMatches(modifier.id())) {
-                info.cancel();
-                return;
-            }
-            MutableText text = Text.translatable(
-                            "tiered.attribute.modifier.take." + modifier.operation().getId(),
+            baseColor = attribute.value().getFormatting(true);
+        } else {
+            // "take" format — negative modifier
+            String translationKey = "tiered.attribute.modifier.take." + modifier.operation().getId();
+            text = Text.translatable(translationKey,
                             AttributeModifiersComponent.DECIMAL_FORMAT.format(-e))
                     .formatted(attribute.value().getFormatting(false));
-            for (int i = 0; i < list.size(); i++) {
-                if (list.get(i).idMatches(modifier.id())) {
-                    continue;
-                }
-                EntityAttributeModifier tieredModifier = list.get(i);
-                double tieredValue;
-                if (tieredModifier.operation() == EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
-                        || tieredModifier.operation() == EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL) {
-                    tieredValue = tieredModifier.value() * 100.0;
-                } else if (attribute.matches(EntityAttributes.KNOCKBACK_RESISTANCE)) {
-                    tieredValue = tieredModifier.value() * 10.0;
-                } else {
-                    tieredValue = tieredModifier.value();
-                }
-                boolean addition = tieredValue > 0;
-                text.append(ScreenTexts.space());
-                text.append(Text.translatable("tiered.attribute.modifier", "(" + (addition ? "+" : "") + AttributeModifiersComponent.DECIMAL_FORMAT.format(tieredValue) + (tieredModifier.operation().getId() > 0 ? "%" : "") + ")").formatted(addition ? Formatting.BLUE : Formatting.RED));
-            }
-            text.append(ScreenTexts.space());
-            text.append(Text.translatable(attribute.value().getTranslationKey()).formatted(Formatting.RED));
-            textConsumer.accept(text);
-            info.cancel();
+            baseColor = attribute.value().getFormatting(false);
         }
+
+        // Append tiered bonus values in parentheses
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).idMatches(modifier.id())) {
+                continue; // skip the base modifier itself
+            }
+            EntityAttributeModifier tieredModifier = list.get(i);
+            double tieredValue;
+            if (tieredModifier.operation() == EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE
+                    || tieredModifier.operation() == EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL) {
+                tieredValue = tieredModifier.value() * 100.0;
+            } else if (attribute.matches(EntityAttributes.KNOCKBACK_RESISTANCE)) {
+                tieredValue = tieredModifier.value() * 10.0;
+            } else {
+                tieredValue = tieredModifier.value();
+            }
+            boolean addition = tieredValue > 0;
+            String bonusStr = "(" + (addition ? "+" : "")
+                    + AttributeModifiersComponent.DECIMAL_FORMAT.format(tieredValue)
+                    + (tieredModifier.operation().getId() > 0 ? "%" : "")
+                    + ")";
+            text.append(ScreenTexts.space());
+            text.append(Text.translatable("tiered.attribute.modifier", bonusStr)
+                    .formatted(addition ? Formatting.BLUE : Formatting.RED));
+        }
+
+        // Append attribute name
+        text.append(ScreenTexts.space());
+        text.append(Text.translatable(attribute.value().getTranslationKey()).formatted(baseColor));
+
+        textConsumer.accept(text);
+        info.cancel();
     }
 
     @Inject(
