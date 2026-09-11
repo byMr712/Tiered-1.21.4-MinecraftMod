@@ -1,13 +1,12 @@
 {
   "required": true,
   "package": "draylar.tiered.mixin",
-  "compatibilityLevel": "JAVA_8",
+  "compatibilityLevel": "JAVA_21",
   "mixins": [
     "ItemStackMixin",
     "LivingEntityMixin",
     "PlayerEntityMixin",
-    "ServerPlayerEntityMixin",
-    "ServerResourceManagerMixin"
+    "ServerPlayerEntityMixin"
   ],
   "client": [
     "ItemStackClientMixin"

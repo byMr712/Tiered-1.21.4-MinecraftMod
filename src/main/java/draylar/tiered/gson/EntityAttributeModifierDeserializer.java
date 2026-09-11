@@ -1,36 +1,40 @@
 package draylar.tiered.gson;
 
 import com.google.gson.*;
+import draylar.tiered.api.AttributeTemplate;
 import net.minecraft.entity.attribute.EntityAttributeModifier;
 
 import java.lang.reflect.Type;
 
-public class EntityAttributeModifierDeserializer implements JsonDeserializer<EntityAttributeModifier> {
-
-    private static final String JSON_NAME_KEY = "name";
-    private static final String JSON_AMOUNT_KEY = "amount";
-    private static final String JSON_OPERATION_KEY = "operation";
+public class EntityAttributeModifierDeserializer implements JsonDeserializer<AttributeTemplate.RawModifier> {
 
     @Override
-    public EntityAttributeModifier deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+    public AttributeTemplate.RawModifier deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
         JsonObject jsonObject = json.getAsJsonObject();
 
-        JsonElement name = getJsonElement(jsonObject, JSON_NAME_KEY, "Entity Attribute Modifier requires a name!");
-        JsonElement amount = getJsonElement(jsonObject, JSON_AMOUNT_KEY, "Entity Attribute Modifier requires an amount!");
-        JsonElement operation = getJsonElement(jsonObject, JSON_OPERATION_KEY, "Entity Attribute Modifier requires an operation!");
+        String name = jsonObject.has("name") ? jsonObject.get("name").getAsString() : "tiered:modifier";
+        double amount = jsonObject.has("amount") ? jsonObject.get("amount").getAsDouble() : 0.0;
+        String opString = jsonObject.has("operation") ? jsonObject.get("operation").getAsString().toUpperCase() : "ADD_VALUE";
 
-        return new EntityAttributeModifier(name.getAsString(), amount.getAsFloat(), EntityAttributeModifier.Operation.valueOf(operation.getAsString().toUpperCase()));
-    }
-
-    private JsonElement getJsonElement(JsonObject jsonObject, String jsonNameKey, String s) {
-        JsonElement name;
-
-        if (jsonObject.has(jsonNameKey)) {
-            name = jsonObject.get(jsonNameKey);
-        } else {
-            throw new JsonParseException(s);
+        EntityAttributeModifier.Operation operation;
+        switch (opString) {
+            case "ADDITION":
+            case "ADD_VALUE":
+                operation = EntityAttributeModifier.Operation.ADD_VALUE;
+                break;
+            case "MULTIPLY_BASE":
+            case "ADD_MULTIPLIED_BASE":
+                operation = EntityAttributeModifier.Operation.ADD_MULTIPLIED_BASE;
+                break;
+            case "MULTIPLY_TOTAL":
+            case "ADD_MULTIPLIED_TOTAL":
+                operation = EntityAttributeModifier.Operation.ADD_MULTIPLIED_TOTAL;
+                break;
+            default:
+                operation = EntityAttributeModifier.Operation.ADD_VALUE;
+                break;
         }
 
-        return name;
+        return new AttributeTemplate.RawModifier(name, amount, operation);
     }
 }

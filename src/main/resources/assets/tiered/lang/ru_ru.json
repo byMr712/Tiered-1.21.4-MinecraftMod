@@ -1,0 +1,31 @@
+{
+  "attribute.name.tiered.dig_speed": "Скорость копания",
+  "attribute.name.tiered.crit_chance": "Шанс критического удара",
+  "generic.dig_speed": "Скорость копания",
+  "generic.crit_chance": "Шанс критического удара",
+
+  "tiered:common.label": "Обычный",
+  "tiered:rare.label": "Редкий",
+  "tiered:epic.label": "Эпический",
+  "tiered:legendary.label": "Легендарный",
+
+  "tiered:dented.label": "Помятый",
+  "tiered:fortified.label": "Укреплённый",
+  "tiered:heavy.label": "Тяжёлый",
+  "tiered:reinforced.label": "Усиленный",
+  "tiered:resilient.label": "Стойкий",
+  "tiered:unchained.label": "Необузданный",
+
+  "tiered:extended.label": "Удлинённый",
+
+  "tiered:lucky.label": "Удачливый",
+
+  "tiered:hasteful.label": "Спешный",
+  "tiered:swift.label": "Быстрый",
+
+  "tiered:berserk.label": "Берсерк",
+  "tiered:critical.label": "Критический",
+  "tiered:dull.label": "Тупой",
+  "tiered:keen.label": "Заточенный",
+  "tiered:sharp.label": "Острый"
+}

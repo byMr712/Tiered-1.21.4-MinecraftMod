@@ -1,25 +1,29 @@
 package draylar.tiered.api;
 
-import net.fabricmc.fabric.api.tag.TagRegistry;
 import net.minecraft.item.Item;
-import net.minecraft.tag.Tag;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.tag.TagKey;
 import net.minecraft.util.Identifier;
 
 public class TieredItemTags {
 
-    public static final Tag<Item> HELMETS = register("helmets");
-    public static final Tag<Item> CHESTPLATES = register("chestplates");
-    public static final Tag<Item> LEGGINGS = register("leggings");
-    public static final Tag<Item> BOOTS = register("boots");
-    public static final Tag<Item> SHIELDS = register("shields");
+    public static final TagKey<Item> HELMETS = registerC("helmets");
+    public static final TagKey<Item> CHESTPLATES = registerC("chestplates");
+    public static final TagKey<Item> LEGGINGS = registerC("leggings");
+    public static final TagKey<Item> BOOTS = registerC("boots");
+    public static final TagKey<Item> SHIELDS = registerC("shields");
+    public static final TagKey<Item> SWORDS = registerC("swords");
+    public static final TagKey<Item> AXES = registerC("axes");
+    public static final TagKey<Item> PICKAXES = registerC("pickaxes");
+    public static final TagKey<Item> SHOVELS = registerC("shovels");
+    public static final TagKey<Item> HOES = registerC("hoes");
 
     private TieredItemTags() { }
 
     public static void init() {
-
     }
 
-    private static Tag<Item> register(String id) {
-        return TagRegistry.item(new Identifier("fabric", id));
+    private static TagKey<Item> registerC(String id) {
+        return TagKey.of(RegistryKeys.ITEM, Identifier.of("c", id));
     }
 }

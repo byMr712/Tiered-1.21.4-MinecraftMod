@@ -1,11 +1,12 @@
 package draylar.tiered.api;
 
-import draylar.tiered.Tiered;
 import net.minecraft.item.Item;
-import net.minecraft.tag.ItemTags;
-import net.minecraft.tag.Tag;
+import net.minecraft.registry.Registries;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.registry.tag.ItemTags;
+import net.minecraft.registry.tag.TagKey;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.registry.Registry;
 
 public class ItemVerifier {
 
@@ -17,37 +18,72 @@ public class ItemVerifier {
         this.tag = tag;
     }
 
-    /**
-     * Returns whether the given {@link Identifier} is valid for this ItemVerifier, which may check direct against either a {@link Identifier} or {@link Tag<Item>}.
-     * <p>The given {@link Identifier} should be the ID of an {@link Item} in {@link Registry#ITEM}.
-     *
-     * @param itemID  item registry ID to check against this verifier
-     * @return  whether the check succeeded
-     */
     public boolean isValid(Identifier itemID) {
-        return isValid(itemID.toString());
+        if (itemID == null) return false;
+        Item item = Registries.ITEM.get(itemID);
+        return isValid(item);
     }
 
-    /**
-     * Returns whether the given {@link String} is valid for this ItemVerifier, which may check direct against either a {@link Identifier} or {@link Tag<Item>}.
-     * <p>The given {@link String} should be the ID of an {@link Item} in {@link Registry#ITEM}.
-     *
-     * @param itemID  item registry ID to check against this verifier
-     * @return  whether the check succeeded
-     */
-    public boolean isValid(String itemID) {
-        if(id != null) {
-            return itemID.equals(id);
-        } else if(tag != null) {
-            Tag<Item> itemTag = ItemTags.getTagGroup().getTag(new Identifier(tag));
+    public boolean isValid(Item item) {
+        if (item == null) return false;
+        Identifier itemID = Registries.ITEM.getId(item);
 
-            if(itemTag != null) {
-                return itemTag.contains(Registry.ITEM.get(new Identifier(itemID)));
-            } else {
-                Tiered.LOGGER.error(tag + " was specified as an item verifier tag, but it does not exist!");
+        if (id != null) {
+            return itemID.toString().equals(id) || itemID.getPath().equals(id);
+        } else if (tag != null) {
+            TagKey<Item> tagKey = resolveTagKey(tag);
+            if (tagKey != null) {
+                RegistryEntry<Item> entry = Registries.ITEM.getEntry(item);
+                if (entry.isIn(tagKey)) {
+                    return true;
+                }
             }
+            return checkLegacyTagFallbacks(tag, item);
         }
 
         return false;
+    }
+
+    private static TagKey<Item> resolveTagKey(String tagString) {
+        Identifier tagId = Identifier.tryParse(tagString);
+        if (tagId == null) return null;
+        return TagKey.of(RegistryKeys.ITEM, tagId);
+    }
+
+    private static boolean checkLegacyTagFallbacks(String tag, Item item) {
+        RegistryEntry<Item> entry = Registries.ITEM.getEntry(item);
+        String name = tag;
+        if (name.contains(":")) {
+            name = name.substring(name.indexOf(':') + 1);
+        }
+
+        switch (name) {
+            case "swords":
+                return entry.isIn(ItemTags.SWORDS) || entry.isIn(TagKey.of(RegistryKeys.ITEM, Identifier.of("c", "swords")));
+            case "pickaxes":
+                return entry.isIn(ItemTags.PICKAXES) || entry.isIn(TagKey.of(RegistryKeys.ITEM, Identifier.of("c", "pickaxes")));
+            case "axes":
+                return entry.isIn(ItemTags.AXES) || entry.isIn(TagKey.of(RegistryKeys.ITEM, Identifier.of("c", "axes")));
+            case "shovels":
+                return entry.isIn(ItemTags.SHOVELS) || entry.isIn(TagKey.of(RegistryKeys.ITEM, Identifier.of("c", "shovels")));
+            case "hoes":
+                return entry.isIn(ItemTags.HOES) || entry.isIn(TagKey.of(RegistryKeys.ITEM, Identifier.of("c", "hoes")));
+            case "helmets":
+            case "head_armor":
+                return entry.isIn(ItemTags.HEAD_ARMOR) || entry.isIn(TagKey.of(RegistryKeys.ITEM, Identifier.of("c", "helmets")));
+            case "chestplates":
+            case "chest_armor":
+                return entry.isIn(ItemTags.CHEST_ARMOR) || entry.isIn(TagKey.of(RegistryKeys.ITEM, Identifier.of("c", "chestplates")));
+            case "leggings":
+            case "leg_armor":
+                return entry.isIn(ItemTags.LEG_ARMOR) || entry.isIn(TagKey.of(RegistryKeys.ITEM, Identifier.of("c", "leggings")));
+            case "boots":
+            case "foot_armor":
+                return entry.isIn(ItemTags.FOOT_ARMOR) || entry.isIn(TagKey.of(RegistryKeys.ITEM, Identifier.of("c", "boots")));
+            case "shields":
+                return entry.isIn(TagKey.of(RegistryKeys.ITEM, Identifier.of("c", "shields")));
+            default:
+                return false;
+        }
     }
 }

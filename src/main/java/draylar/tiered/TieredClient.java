@@ -2,6 +2,7 @@ package draylar.tiered;
 
 import draylar.tiered.api.PotentialAttribute;
 import draylar.tiered.data.AttributeDataLoader;
+import draylar.tiered.network.AttributeSyncPayload;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.util.Identifier;
@@ -11,7 +12,6 @@ import java.util.Map;
 
 public class TieredClient implements ClientModInitializer {
 
-    // map for storing attributes before logging into a server
     public static final Map<Identifier, PotentialAttribute> CACHED_ATTRIBUTES = new HashMap<>();
 
     @Override
@@ -20,18 +20,20 @@ public class TieredClient implements ClientModInitializer {
     }
 
     public static void registerAttributeSyncHandler() {
-        ClientPlayNetworking.registerGlobalReceiver(Tiered.ATTRIBUTE_SYNC_PACKET, (client, play, packet, packetSender) -> {
-            // save old attributes
-            CACHED_ATTRIBUTES.putAll(Tiered.ATTRIBUTE_DATA_LOADER.getItemAttributes());
-            Tiered.ATTRIBUTE_DATA_LOADER.getItemAttributes().clear();
+        ClientPlayNetworking.registerGlobalReceiver(AttributeSyncPayload.ID, (payload, context) -> {
+            context.client().execute(() -> {
+                CACHED_ATTRIBUTES.putAll(Tiered.ATTRIBUTE_DATA_LOADER.getItemAttributes());
+                Tiered.ATTRIBUTE_DATA_LOADER.getItemAttributes().clear();
 
-            // for each id/attribute pair, load it
-            int size = packet.readInt();
-            for(int i = 0; i < size; i++) {
-                Identifier id = new Identifier(packet.readString());
-                PotentialAttribute pa = AttributeDataLoader.GSON.fromJson(packet.readString(), PotentialAttribute.class);
-                Tiered.ATTRIBUTE_DATA_LOADER.getItemAttributes().put(id, pa);
-            }
+                payload.attributes().forEach((id, json) -> {
+                    try {
+                        PotentialAttribute pa = AttributeDataLoader.GSON.fromJson(json, PotentialAttribute.class);
+                        Tiered.ATTRIBUTE_DATA_LOADER.getItemAttributes().put(id, pa);
+                    } catch (Exception e) {
+                        Tiered.LOGGER.error("Failed to parse synced tiered attribute: " + id, e);
+                    }
+                });
+            });
         });
     }
 }

@@ -4,18 +4,18 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
-import net.minecraft.entity.attribute.EntityAttributeModifier;
+import draylar.tiered.api.AttributeTemplate;
 
 import java.lang.reflect.Type;
 
-public class EntityAttributeModifierSerializer implements JsonSerializer<EntityAttributeModifier> {
+public class EntityAttributeModifierSerializer implements JsonSerializer<AttributeTemplate.RawModifier> {
 
     @Override
-    public JsonElement serialize(EntityAttributeModifier src, Type typeOfSrc, JsonSerializationContext context) {
+    public JsonElement serialize(AttributeTemplate.RawModifier src, Type typeOfSrc, JsonSerializationContext context) {
         JsonObject obj = new JsonObject();
-        obj.addProperty("amount", src.getValue());
-        obj.addProperty("operation", src.getOperation().toString());
         obj.addProperty("name", src.getName());
+        obj.addProperty("amount", src.getAmount());
+        obj.addProperty("operation", src.getOperation().toString());
         return obj;
     }
 }

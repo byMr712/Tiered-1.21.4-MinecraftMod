@@ -1,5 +1,6 @@
 package draylar.tiered.api;
 
+import net.minecraft.item.Item;
 import net.minecraft.text.Style;
 import net.minecraft.util.Identifier;
 
@@ -28,12 +29,22 @@ public class PotentialAttribute {
     }
 
     public boolean isValid(Identifier id) {
-        for(ItemVerifier verifier : verifiers) {
-            if(verifier.isValid(id)) {
+        if (verifiers == null) return false;
+        for (ItemVerifier verifier : verifiers) {
+            if (verifier.isValid(id)) {
                 return true;
             }
         }
+        return false;
+    }
 
+    public boolean isValid(Item item) {
+        if (verifiers == null) return false;
+        for (ItemVerifier verifier : verifiers) {
+            if (verifier.isValid(item)) {
+                return true;
+            }
+        }
         return false;
     }
 

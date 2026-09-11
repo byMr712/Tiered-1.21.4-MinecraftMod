@@ -1,34 +1,23 @@
 package draylar.tiered.api;
 
-import com.google.common.collect.Multimap;
 import com.google.gson.annotations.SerializedName;
 import draylar.tiered.Tiered;
 import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.entity.attribute.ClampedEntityAttribute;
 import net.minecraft.entity.attribute.EntityAttribute;
 import net.minecraft.entity.attribute.EntityAttributeModifier;
+import net.minecraft.registry.Registries;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.registry.Registry;
 
-/**
- * Stores information on an AttributeModifier template applied to an ItemStack.
- *
- * The ID of the AttributeTemplate is the logical ID used to determine what "type" of attribute of is.
- * An EntityAttributeModifier has:
- *   - a UUID, which is a unique identifier to separate different attributes of the same type
- *   - a name, which is used for generating a non-specified UUID and displaying in tooltips in some context
- *   - an amount, which is used in combination with the operation to modify the final relevant value
- *   - a modifier, which can be something such as addition or subtraction
- *
- * The EquipmentSlot is used to only apply this template to certain items.
- */
+import java.util.function.BiConsumer;
+
 public class AttributeTemplate {
 
     @SerializedName("type")
     private final String attributeTypeID;
 
     @SerializedName("modifier")
-    private final EntityAttributeModifier entityAttributeModifier;
+    private final RawModifier modifier;
 
     @SerializedName("required_equipment_slots")
     private final EquipmentSlot[] requiredEquipmentSlots;
@@ -36,41 +25,104 @@ public class AttributeTemplate {
     @SerializedName("optional_equipment_slots")
     private final EquipmentSlot[] optionalEquipmentSlots;
 
-    public AttributeTemplate(String attributeTypeID, EntityAttributeModifier entityAttributeModifier, EquipmentSlot[]  requiredEquipmentSlots, EquipmentSlot[]  optionalEquipmentSlots) {
+    public AttributeTemplate(String attributeTypeID, RawModifier modifier, EquipmentSlot[] requiredEquipmentSlots, EquipmentSlot[] optionalEquipmentSlots) {
         this.attributeTypeID = attributeTypeID;
-        this.entityAttributeModifier = entityAttributeModifier;
+        this.modifier = modifier;
         this.requiredEquipmentSlots = requiredEquipmentSlots;
         this.optionalEquipmentSlots = optionalEquipmentSlots;
     }
 
-    public EquipmentSlot[]  getRequiredEquipmentSlots() {
+    public EquipmentSlot[] getRequiredEquipmentSlots() {
         return requiredEquipmentSlots;
     }
 
-    public EquipmentSlot[]  getOptionalEquipmentSlots() {
+    public EquipmentSlot[] getOptionalEquipmentSlots() {
         return optionalEquipmentSlots;
     }
 
-    /**
-     * Uses this {@link AttributeTemplate} to create an {@link EntityAttributeModifier}, which is placed into the given {@link Multimap}.
-     * <p>Note that this method assumes the given {@link Multimap} is mutable.
-     *
-     * @param multimap  map to add {@link AttributeTemplate}
-     * @param slot
-     */
-    public void realize(Multimap<EntityAttribute, EntityAttributeModifier> multimap, EquipmentSlot slot) {
-        EntityAttributeModifier cloneModifier = new EntityAttributeModifier(
-                Tiered.MODIFIERS[slot.getArmorStandSlotId()],
-                entityAttributeModifier.getName() + "_" + slot.getName(),
-                entityAttributeModifier.getValue(),
-                entityAttributeModifier.getOperation()
-        );
+    public String getAttributeTypeID() {
+        return attributeTypeID;
+    }
 
-        EntityAttribute key = Registry.ATTRIBUTE.get(new Identifier(attributeTypeID));
-        if(key == null) {
-            Tiered.LOGGER.warn(String.format("%s was referenced as an attribute type, but it does not exist! A data file in /tiered/item_attributes/ has an invalid type property.", attributeTypeID));
-        } else {
-            multimap.put(key, cloneModifier);
+    public RawModifier getModifier() {
+        return modifier;
+    }
+
+    public void realize(BiConsumer<RegistryEntry<EntityAttribute>, EntityAttributeModifier> consumer, EquipmentSlot slot) {
+        RegistryEntry<EntityAttribute> key = resolveAttribute(attributeTypeID);
+        if (key == null) {
+            Tiered.LOGGER.warn("Unknown attribute type '{}' in Tiered data files.", attributeTypeID);
+            return;
+        }
+
+        String rawName = modifier != null ? modifier.getName() : "tiered:modifier";
+        Identifier modId = Tiered.id(rawName.replace("tiered:", "") + "_" + slot.asString());
+        double amount = modifier != null ? modifier.getAmount() : 0.0;
+        EntityAttributeModifier.Operation op = modifier != null ? modifier.getOperation() : EntityAttributeModifier.Operation.ADD_VALUE;
+
+        EntityAttributeModifier entityModifier = new EntityAttributeModifier(
+                modId,
+                amount,
+                op
+        );
+        consumer.accept(key, entityModifier);
+    }
+
+    public static RegistryEntry<EntityAttribute> resolveAttribute(String id) {
+        if (id == null) return null;
+        String cleanId = id.trim();
+        if (cleanId.equals("reach-entity-attributes:reach") || cleanId.equals("player.block_interaction_range") || cleanId.equals("block_interaction_range")) {
+            var entry = Registries.ATTRIBUTE.getEntry(Identifier.of("minecraft", "player.block_interaction_range"));
+            if (entry.isPresent()) return entry.get();
+            entry = Registries.ATTRIBUTE.getEntry(Identifier.of("minecraft", "block_interaction_range"));
+            if (entry.isPresent()) return entry.get();
+        }
+        if (cleanId.equals("reach-entity-attributes:attack_range") || cleanId.equals("player.entity_interaction_range") || cleanId.equals("entity_interaction_range")) {
+            var entry = Registries.ATTRIBUTE.getEntry(Identifier.of("minecraft", "player.entity_interaction_range"));
+            if (entry.isPresent()) return entry.get();
+            entry = Registries.ATTRIBUTE.getEntry(Identifier.of("minecraft", "entity_interaction_range"));
+            if (entry.isPresent()) return entry.get();
+        }
+        if (cleanId.equals("generic.dig_speed") || cleanId.equals("tiered:dig_speed")) {
+            return CustomEntityAttributes.DIG_SPEED;
+        }
+        if (cleanId.equals("generic.crit_chance") || cleanId.equals("tiered:crit_chance")) {
+            return CustomEntityAttributes.CRIT_CHANCE;
+        }
+        if (cleanId.startsWith("generic.")) {
+            Identifier vanillaId = Identifier.of("minecraft", cleanId.substring("generic.".length()));
+            var entry = Registries.ATTRIBUTE.getEntry(vanillaId);
+            if (entry.isPresent()) return entry.get();
+        }
+        Identifier parsed = Identifier.tryParse(cleanId);
+        if (parsed != null) {
+            var entry = Registries.ATTRIBUTE.getEntry(parsed);
+            if (entry.isPresent()) return entry.get();
+        }
+        return null;
+    }
+
+    public static class RawModifier {
+        private String name;
+        private double amount;
+        private EntityAttributeModifier.Operation operation = EntityAttributeModifier.Operation.ADD_VALUE;
+
+        public RawModifier(String name, double amount, EntityAttributeModifier.Operation operation) {
+            this.name = name;
+            this.amount = amount;
+            this.operation = operation;
+        }
+
+        public String getName() {
+            return name != null ? name : "tiered:modifier";
+        }
+
+        public double getAmount() {
+            return amount;
+        }
+
+        public EntityAttributeModifier.Operation getOperation() {
+            return operation != null ? operation : EntityAttributeModifier.Operation.ADD_VALUE;
         }
     }
 }

@@ -1,76 +1,53 @@
 package draylar.tiered.mixin;
 
-import com.google.common.collect.LinkedListMultimap;
-import com.google.common.collect.Multimap;
 import draylar.tiered.Tiered;
+import draylar.tiered.api.ModifierUtils;
 import draylar.tiered.api.PotentialAttribute;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.attribute.EntityAttribute;
 import net.minecraft.entity.attribute.EntityAttributeModifier;
-import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.util.Identifier;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.function.BiConsumer;
 
 @Mixin(ItemStack.class)
 public abstract class ItemStackMixin {
 
-    @Shadow public abstract CompoundTag getOrCreateSubTag(String key);
-
-    @Shadow public abstract CompoundTag getTag();
-
-    @Shadow public abstract boolean hasTag();
-
-    @Shadow public abstract CompoundTag getSubTag(String key);
-
-    @Redirect(
-            method = "getAttributeModifiers",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/item/Item;getAttributeModifiers(Lnet/minecraft/entity/EquipmentSlot;)Lcom/google/common/collect/Multimap;")
+    @Inject(
+            method = "applyAttributeModifiers(Lnet/minecraft/entity/EquipmentSlot;Ljava/util/function/BiConsumer;)V",
+            at = @At("TAIL")
     )
-    private Multimap<EntityAttribute, EntityAttributeModifier> go(Item item, EquipmentSlot slot) {
-        Multimap<EntityAttribute, EntityAttributeModifier> mods = item.getAttributeModifiers(slot);
-        Multimap<EntityAttribute, EntityAttributeModifier> newMap = LinkedListMultimap.create();
-        newMap.putAll(mods);
+    private void applyTieredModifiers(EquipmentSlot slot, BiConsumer<RegistryEntry<EntityAttribute>, EntityAttributeModifier> attributeModifierConsumer, CallbackInfo ci) {
+        ItemStack self = (ItemStack) (Object) this;
+        Identifier tier = ModifierUtils.getTier(self);
 
-        if(getSubTag(Tiered.NBT_SUBTAG_KEY) != null) {
-            Identifier tier = new Identifier(getOrCreateSubTag(Tiered.NBT_SUBTAG_KEY).getString(Tiered.NBT_SUBTAG_DATA_KEY));
+        if (tier != null) {
+            PotentialAttribute potentialAttribute = Tiered.ATTRIBUTE_DATA_LOADER.getItemAttributes().get(tier);
 
-            if(!hasTag() || !getTag().contains("AttributeModifiers", 9)) {
-                PotentialAttribute potentialAttribute = Tiered.ATTRIBUTE_DATA_LOADER.getItemAttributes().get(tier);
-
-                if(potentialAttribute != null) {
-                    potentialAttribute.getAttributes().forEach(template -> {
-                        // get required equipment slots
-                        if(template.getRequiredEquipmentSlots() != null) {
-                            List<EquipmentSlot> requiredEquipmentSlots = new ArrayList<>(Arrays.asList(template.getRequiredEquipmentSlots()));
-
-                            if(requiredEquipmentSlots.contains(slot)) {
-                                template.realize(newMap, slot);
-                            }
+            if (potentialAttribute != null && potentialAttribute.getAttributes() != null) {
+                potentialAttribute.getAttributes().forEach(template -> {
+                    // required equipment slots
+                    if (template.getRequiredEquipmentSlots() != null) {
+                        if (Arrays.asList(template.getRequiredEquipmentSlots()).contains(slot)) {
+                            template.realize(attributeModifierConsumer, slot);
                         }
+                    }
 
-                        // get optional equipment slots
-                        if(template.getOptionalEquipmentSlots() != null) {
-                            List<EquipmentSlot> optionalEquipmentSlots = new ArrayList<>(Arrays.asList(template.getOptionalEquipmentSlots()));
-
-                            // optional equipment slots are valid ONLY IF the equipment slot is valid for the thing
-                            if(optionalEquipmentSlots.contains(slot) && Tiered.isPreferredEquipmentSlot((ItemStack) (Object) this, slot)) {
-                                template.realize(newMap, slot);
-                            }
+                    // optional equipment slots
+                    if (template.getOptionalEquipmentSlots() != null) {
+                        if (Arrays.asList(template.getOptionalEquipmentSlots()).contains(slot) && Tiered.isPreferredEquipmentSlot(self, slot)) {
+                            template.realize(attributeModifierConsumer, slot);
                         }
-                    });
-                }
+                    }
+                });
             }
         }
-
-        return newMap;
     }
 }

@@ -4,7 +4,6 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.data.TrackedData;
-import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,12 +20,8 @@ public abstract class LivingEntityMixin extends Entity {
         super(type, world);
     }
 
-    /**
-     * Item attributes aren't applied until the player first ticks, which means any attributes
-     *   such as bonus health are reset. This is annoying with health boosting armor.
-     */
     @Redirect(
-            method = "readCustomDataFromTag",
+            method = "readCustomDataFromNbt",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/LivingEntity;setHealth(F)V"))
     private void trustOverflowHealth(LivingEntity livingEntity, float health) {
         this.dataTracker.set(HEALTH, health);

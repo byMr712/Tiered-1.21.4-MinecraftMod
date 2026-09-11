@@ -4,71 +4,70 @@ import com.google.common.collect.Maps;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
-import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
+import draylar.tiered.Tiered;
+import draylar.tiered.api.AttributeTemplate;
 import draylar.tiered.api.PotentialAttribute;
-import draylar.tiered.gson.EntityAttributeModifierDeserializer;
-import draylar.tiered.gson.EntityAttributeModifierSerializer;
-import draylar.tiered.gson.EquipmentSlotDeserializer;
-import draylar.tiered.gson.EquipmentSlotSerializer;
+import draylar.tiered.gson.*;
+import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
 import net.minecraft.entity.EquipmentSlot;
-import net.minecraft.entity.attribute.EntityAttributeModifier;
-import net.minecraft.resource.JsonDataLoader;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.text.Style;
+import net.minecraft.text.TextColor;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.profiler.Profiler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-public class AttributeDataLoader extends JsonDataLoader {
+public class AttributeDataLoader implements SimpleSynchronousResourceReloadListener {
 
     public static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
             .disableHtmlEscaping()
-            .registerTypeAdapter(EntityAttributeModifier.class, new EntityAttributeModifierDeserializer())
-            .registerTypeAdapter(EntityAttributeModifier.class, new EntityAttributeModifierSerializer())
+            .registerTypeAdapter(AttributeTemplate.RawModifier.class, new EntityAttributeModifierDeserializer())
+            .registerTypeAdapter(AttributeTemplate.RawModifier.class, new EntityAttributeModifierSerializer())
             .registerTypeAdapter(EquipmentSlot.class, new EquipmentSlotSerializer())
             .registerTypeAdapter(EquipmentSlot.class, new EquipmentSlotDeserializer())
-            .registerTypeHierarchyAdapter(Style.class, new Style.Serializer())
+            .registerTypeAdapter(Formatting.class, new FormattingDeserializer())
+            .registerTypeAdapter(TextColor.class, new TextColorDeserializer())
+            .registerTypeHierarchyAdapter(Style.class, new StyleDeserializer())
             .create();
 
-    private static final String PARSING_ERROR_MESSAGE = "Parsing error loading recipe {}";
-    private static final String LOADED_RECIPES_MESSAGE = "Loaded {} recipes";
     private static final Logger LOGGER = LogManager.getLogger();
-
     private Map<Identifier, PotentialAttribute> itemAttributes = new HashMap<>();
 
-    public AttributeDataLoader() {
-        super(GSON, "item_attributes");
+    @Override
+    public Identifier getFabricId() {
+        return Tiered.id("item_attributes");
     }
 
     @Override
-    protected void apply(Map<Identifier, JsonElement> loader, ResourceManager manager, Profiler profiler) {
+    public void reload(ResourceManager manager) {
         Map<Identifier, PotentialAttribute> readItemAttributes = Maps.newHashMap();
+        String dataType = "item_attributes";
 
-        for (Map.Entry<Identifier, JsonElement> entry : loader.entrySet()) {
-            Identifier identifier = entry.getKey();
-
-            try {
-                PotentialAttribute itemAttribute = GSON.fromJson(entry.getValue(), PotentialAttribute.class);
-                readItemAttributes.put(new Identifier(itemAttribute.getID()), itemAttribute);
-            } catch (IllegalArgumentException | JsonParseException exception) {
-                LOGGER.error(PARSING_ERROR_MESSAGE, identifier, exception);
+        manager.findResources(dataType, path -> path.getPath().endsWith(".json")).forEach((resourceLocation, resource) -> {
+            try (InputStreamReader reader = new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8)) {
+                JsonElement jsonElement = JsonParser.parseReader(reader);
+                PotentialAttribute itemAttribute = GSON.fromJson(jsonElement, PotentialAttribute.class);
+                Identifier id = Identifier.tryParse(itemAttribute.getID());
+                if (id != null) {
+                    readItemAttributes.put(id, itemAttribute);
+                }
+            } catch (Exception exception) {
+                LOGGER.error("Parsing error loading tiered attribute {}", resourceLocation, exception);
             }
-        }
+        });
 
         itemAttributes = readItemAttributes;
-        LOGGER.info(LOADED_RECIPES_MESSAGE, readItemAttributes.size());
+        LOGGER.info("Loaded {} tiered item attributes", readItemAttributes.size());
     }
 
-    /**
-     * Returns a list of potential item attributes ({@link PotentialAttribute}) read from "data/modid/item_attributes".
-     *
-     * @return  list of potential read item attributes
-     */
     public Map<Identifier, PotentialAttribute> getItemAttributes() {
         return itemAttributes;
     }

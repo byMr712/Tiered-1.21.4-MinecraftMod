@@ -1,9 +1,13 @@
 package draylar.tiered.api;
 
 import draylar.tiered.Tiered;
+import net.minecraft.component.DataComponentTypes;
+import net.minecraft.component.type.NbtComponent;
 import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtElement;
 import net.minecraft.util.Identifier;
-import net.minecraft.util.registry.Registry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,29 +15,52 @@ import java.util.Random;
 
 public class ModifierUtils {
 
-    /**
-     * Returns the ID of a random attribute that is valid for the given {@link Item} in {@link Identifier} form.
-     * <p> If there is no valid attribute for the given {@link Item}, null is returned.
-     *
-     * @param item  {@link Item} to generate a random attribute for
-     * @return  id of random attribute for item in {@link Identifier} form, or null if there are no valid options
-     */
+    private static final Random RANDOM = new Random();
+
     public static Identifier getRandomAttributeIDFor(Item item) {
+        if (item == null) return null;
         List<Identifier> potentialAttributes = new ArrayList<>();
 
-        // collect all valid attributes for the given item
         Tiered.ATTRIBUTE_DATA_LOADER.getItemAttributes().forEach((id, attribute) -> {
-            if(attribute.isValid(Registry.ITEM.getId(item))) {
-                potentialAttributes.add(new Identifier(attribute.getID()));
+            if (attribute.isValid(item)) {
+                potentialAttributes.add(id);
             }
         });
 
-        // return a random attribute if there are any, or null if there are none
-        if(potentialAttributes.size() > 0) {
-            return potentialAttributes.get(new Random().nextInt(potentialAttributes.size()));
+        if (!potentialAttributes.isEmpty()) {
+            return potentialAttributes.get(RANDOM.nextInt(potentialAttributes.size()));
         } else {
             return null;
         }
+    }
+
+    public static Identifier getTier(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return null;
+        NbtComponent customData = stack.get(DataComponentTypes.CUSTOM_DATA);
+        if (customData != null) {
+            NbtCompound nbt = customData.copyNbt();
+            if (nbt.contains(Tiered.NBT_SUBTAG_KEY, NbtElement.COMPOUND_TYPE)) {
+                NbtCompound sub = nbt.getCompound(Tiered.NBT_SUBTAG_KEY);
+                if (sub.contains(Tiered.NBT_SUBTAG_DATA_KEY, NbtElement.STRING_TYPE)) {
+                    return Identifier.tryParse(sub.getString(Tiered.NBT_SUBTAG_DATA_KEY));
+                }
+            }
+        }
+        return null;
+    }
+
+    public static void setTier(ItemStack stack, Identifier tierId) {
+        if (stack == null || stack.isEmpty() || tierId == null) return;
+        NbtComponent customData = stack.getOrDefault(DataComponentTypes.CUSTOM_DATA, NbtComponent.DEFAULT);
+        NbtCompound nbt = customData.copyNbt();
+        NbtCompound sub = nbt.getCompound(Tiered.NBT_SUBTAG_KEY);
+        sub.putString(Tiered.NBT_SUBTAG_DATA_KEY, tierId.toString());
+        nbt.put(Tiered.NBT_SUBTAG_KEY, sub);
+        stack.set(DataComponentTypes.CUSTOM_DATA, NbtComponent.of(nbt));
+    }
+
+    public static boolean hasTier(ItemStack stack) {
+        return getTier(stack) != null;
     }
 
     private ModifierUtils() {

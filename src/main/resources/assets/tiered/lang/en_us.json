@@ -1,6 +1,8 @@
 {
+  "attribute.name.tiered.dig_speed": "Dig Speed",
+  "attribute.name.tiered.crit_chance": "Critical Strike Chance",
   "generic.dig_speed": "Dig Speed",
-  "generic.crit_chance": "Crit Chance",
+  "generic.crit_chance": "Critical Strike Chance",
 
   "tiered:common.label": "Common",
   "tiered:rare.label": "Rare",
