@@ -39,7 +39,54 @@ public class AttributeDataLoader implements SimpleSynchronousResourceReloadListe
             .create();
 
     private static final Logger LOGGER = LogManager.getLogger();
+    private static final String[] DEFAULT_ATTRIBUTE_FILES = new String[]{
+            "data/tiered/item_attributes/all/common.json",
+            "data/tiered/item_attributes/all/epic.json",
+            "data/tiered/item_attributes/all/legendary.json",
+            "data/tiered/item_attributes/all/rare.json",
+            "data/tiered/item_attributes/all_armor/dented.json",
+            "data/tiered/item_attributes/all_armor/fortified.json",
+            "data/tiered/item_attributes/all_armor/heavy.json",
+            "data/tiered/item_attributes/all_armor/reinforced.json",
+            "data/tiered/item_attributes/all_armor/resilient.json",
+            "data/tiered/item_attributes/all_armor/unchained.json",
+            "data/tiered/item_attributes/all_tools/extended.json",
+            "data/tiered/item_attributes/fishing_rods/lucky.json",
+            "data/tiered/item_attributes/gathering_tools/hasteful.json",
+            "data/tiered/item_attributes/gathering_tools/swift.json",
+            "data/tiered/item_attributes/melee_weapons/berserk.json",
+            "data/tiered/item_attributes/melee_weapons/critical.json",
+            "data/tiered/item_attributes/melee_weapons/dull.json",
+            "data/tiered/item_attributes/melee_weapons/keen.json",
+            "data/tiered/item_attributes/melee_weapons/sharp.json"
+    };
+
     private Map<Identifier, PotentialAttribute> itemAttributes = new HashMap<>();
+
+    public AttributeDataLoader() {
+        loadDefaults();
+    }
+
+    public void loadDefaults() {
+        for (String path : DEFAULT_ATTRIBUTE_FILES) {
+            try (var is = AttributeDataLoader.class.getClassLoader().getResourceAsStream(path)) {
+                if (is != null) {
+                    try (var reader = new InputStreamReader(is, StandardCharsets.UTF_8)) {
+                        PotentialAttribute pa = GSON.fromJson(reader, PotentialAttribute.class);
+                        if (pa != null && pa.getID() != null) {
+                            Identifier id = Identifier.tryParse(pa.getID());
+                            if (id != null) {
+                                itemAttributes.put(id, pa);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.warn("Failed to load default attribute: " + path, e);
+            }
+        }
+        LOGGER.info("Preloaded {} default tiered item attributes", itemAttributes.size());
+    }
 
     @Override
     public Identifier getFabricId() {
@@ -64,8 +111,10 @@ public class AttributeDataLoader implements SimpleSynchronousResourceReloadListe
             }
         });
 
-        itemAttributes = readItemAttributes;
-        LOGGER.info("Loaded {} tiered item attributes", readItemAttributes.size());
+        if (!readItemAttributes.isEmpty()) {
+            itemAttributes.putAll(readItemAttributes);
+        }
+        LOGGER.info("Loaded {} tiered item attributes from resources", itemAttributes.size());
     }
 
     public Map<Identifier, PotentialAttribute> getItemAttributes() {

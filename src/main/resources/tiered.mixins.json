@@ -3,6 +3,8 @@
   "package": "draylar.tiered.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "CraftingResultSlotMixin",
+    "ItemEntityMixin",
     "ItemStackMixin",
     "LivingEntityMixin",
     "PlayerEntityMixin",
