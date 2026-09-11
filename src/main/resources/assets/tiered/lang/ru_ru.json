@@ -27,5 +27,16 @@
   "tiered:critical.label": "Критический",
   "tiered:dull.label": "Тупой",
   "tiered:keen.label": "Заточенный",
-  "tiered:sharp.label": "Острый"
+  "tiered:sharp.label": "Острый",
+
+  "tiered.attribute.modifier": "%s",
+  "tiered.attribute.modifier.equals.0": "%s",
+  "tiered.attribute.modifier.equals.1": "%s%%",
+  "tiered.attribute.modifier.equals.2": "%s%%",
+  "tiered.attribute.modifier.plus.0": "+%s",
+  "tiered.attribute.modifier.plus.1": "+%s%%",
+  "tiered.attribute.modifier.plus.2": "+%s%%",
+  "tiered.attribute.modifier.take.0": "-%s",
+  "tiered.attribute.modifier.take.1": "-%s%%",
+  "tiered.attribute.modifier.take.2": "-%s%%"
 }
