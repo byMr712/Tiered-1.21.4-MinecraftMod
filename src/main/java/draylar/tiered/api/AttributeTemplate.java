@@ -71,26 +71,25 @@ public class AttributeTemplate {
     public static RegistryEntry<EntityAttribute> resolveAttribute(String id) {
         if (id == null) return null;
         String cleanId = id.trim();
-        if (cleanId.equals("reach-entity-attributes:reach") || cleanId.equals("player.block_interaction_range") || cleanId.equals("block_interaction_range")) {
-            var entry = Registries.ATTRIBUTE.getEntry(Identifier.of("minecraft", "player.block_interaction_range"));
-            if (entry.isPresent()) return entry.get();
-            entry = Registries.ATTRIBUTE.getEntry(Identifier.of("minecraft", "block_interaction_range"));
-            if (entry.isPresent()) return entry.get();
+        if (cleanId.equals("reach-entity-attributes:reach") || cleanId.equals("player.block_interaction_range") || cleanId.equals("block_interaction_range") || cleanId.equals("generic.block_interaction_range") || cleanId.equals("minecraft:block_interaction_range") || cleanId.equals("minecraft:player.block_interaction_range")) {
+            return net.minecraft.entity.attribute.EntityAttributes.BLOCK_INTERACTION_RANGE;
         }
-        if (cleanId.equals("reach-entity-attributes:attack_range") || cleanId.equals("player.entity_interaction_range") || cleanId.equals("entity_interaction_range")) {
-            var entry = Registries.ATTRIBUTE.getEntry(Identifier.of("minecraft", "player.entity_interaction_range"));
-            if (entry.isPresent()) return entry.get();
-            entry = Registries.ATTRIBUTE.getEntry(Identifier.of("minecraft", "entity_interaction_range"));
-            if (entry.isPresent()) return entry.get();
+        if (cleanId.equals("reach-entity-attributes:attack_range") || cleanId.equals("player.entity_interaction_range") || cleanId.equals("entity_interaction_range") || cleanId.equals("generic.entity_interaction_range") || cleanId.equals("minecraft:entity_interaction_range") || cleanId.equals("minecraft:player.entity_interaction_range")) {
+            return net.minecraft.entity.attribute.EntityAttributes.ENTITY_INTERACTION_RANGE;
         }
-        if (cleanId.equals("generic.dig_speed") || cleanId.equals("tiered:dig_speed")) {
+        if (cleanId.equals("generic.dig_speed") || cleanId.equals("tiered:dig_speed") || cleanId.equals("tiered:generic.dig_speed") || cleanId.equals("dig_speed")) {
             return CustomEntityAttributes.DIG_SPEED;
         }
-        if (cleanId.equals("generic.crit_chance") || cleanId.equals("tiered:crit_chance")) {
+        if (cleanId.equals("generic.crit_chance") || cleanId.equals("tiered:crit_chance") || cleanId.equals("tiered:generic.crit_chance") || cleanId.equals("crit_chance")) {
             return CustomEntityAttributes.CRIT_CHANCE;
         }
         if (cleanId.startsWith("generic.")) {
             Identifier vanillaId = Identifier.of("minecraft", cleanId.substring("generic.".length()));
+            var entry = Registries.ATTRIBUTE.getEntry(vanillaId);
+            if (entry.isPresent()) return entry.get();
+        }
+        if (cleanId.startsWith("player.")) {
+            Identifier vanillaId = Identifier.of("minecraft", cleanId.substring("player.".length()));
             var entry = Registries.ATTRIBUTE.getEntry(vanillaId);
             if (entry.isPresent()) return entry.get();
         }
