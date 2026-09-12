@@ -21,8 +21,8 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class AttributeDataLoader implements SimpleSynchronousResourceReloadListener {
 
@@ -61,7 +61,7 @@ public class AttributeDataLoader implements SimpleSynchronousResourceReloadListe
             "data/tiered/item_attributes/melee_weapons/sharp.json"
     };
 
-    private Map<Identifier, PotentialAttribute> itemAttributes = new HashMap<>();
+    private final Map<Identifier, PotentialAttribute> itemAttributes = new ConcurrentHashMap<>();
 
     public AttributeDataLoader() {
         loadDefaults();
