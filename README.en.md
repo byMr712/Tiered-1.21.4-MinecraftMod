@@ -8,7 +8,7 @@
 ![ModMenu](https://img.shields.io/badge/ModMenu-Supported-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
-Port, optimization, and update of the **Tiered** mod for **Minecraft 1.21.4 (Fabric)** by **byMr712**.
+Port, optimization, and update of the **Tiered** mod for **Minecraft 1.21.4 (Fabric)**.
 
 Original Developer: [Draylar/tiered](https://github.com/Draylar/tiered).
 
@@ -41,7 +41,6 @@ Original Developer: [Draylar/tiered](https://github.com/Draylar/tiered).
   - **Zero-Allocation Slot Iterations**: Replaced `Arrays.asList` calls with direct array iterations over equipment slots.
 - **Full Localization**:
   - Added Russian (`ru_ru.json`) and English (`en_us.json`) translations.
-- Configured fast build scripts and auto-copy to the launcher instance folder.
 
 ---
 
@@ -49,7 +48,6 @@ Original Developer: [Draylar/tiered](https://github.com/Draylar/tiered).
 
 1. Download the latest release from [GitHub Releases](https://github.com/byMr712/Tiered-1.21.4-MinecraftMod/releases).
 2. Requires:
-   - [Fabric Loader](https://fabricmc.net/) (Minecraft 1.21.4)
    - [Fabric API](https://modrinth.com/mod/fabric-api)
 3. Place the `.jar` file into your `mods` folder.
 4. Launch the game.
