@@ -51,3 +51,25 @@ jar {
         rename { "${it}_${project.archives_base_name}" }
     }
 }
+
+remapJar {
+    archiveFileName = "Tiered-1.21.4-byMr712.jar"
+}
+
+def launcherModsDir = file("E:/ATLauncher/instances/FabulouslyOptimizedFPStest1214/mods")
+
+tasks.register('copyToLauncher', Copy) {
+    onlyIf {
+        launcherModsDir.exists()
+    }
+    dependsOn remapJar
+    from remapJar.archiveFile
+    into launcherModsDir
+    doLast {
+        println ">>> Copied ${remapJar.archiveFileName.get()} to ATLauncher instance mods folder!"
+    }
+}
+
+if (launcherModsDir.exists()) {
+    build.finalizedBy(copyToLauncher)
+}

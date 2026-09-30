@@ -9,24 +9,34 @@ import net.minecraft.nbt.NbtCompound;
 import net.minecraft.nbt.NbtElement;
 import net.minecraft.util.Identifier;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ModifierUtils {
 
     private static final Random RANDOM = new Random();
+    private static final Map<Item, List<Identifier>> ITEM_ATTRIBUTES_CACHE = new ConcurrentHashMap<>();
+
+    public static void clearCache() {
+        ITEM_ATTRIBUTES_CACHE.clear();
+    }
+
+    public static List<Identifier> getPotentialAttributesFor(Item item) {
+        if (item == null) return Collections.emptyList();
+        return ITEM_ATTRIBUTES_CACHE.computeIfAbsent(item, key -> {
+            List<Identifier> potentialAttributes = new ArrayList<>();
+            Tiered.ATTRIBUTE_DATA_LOADER.getItemAttributes().forEach((id, attribute) -> {
+                if (attribute.isValid(key)) {
+                    potentialAttributes.add(id);
+                }
+            });
+            return potentialAttributes.isEmpty() ? Collections.emptyList() : Collections.unmodifiableList(potentialAttributes);
+        });
+    }
 
     public static Identifier getRandomAttributeIDFor(Item item) {
         if (item == null) return null;
-        List<Identifier> potentialAttributes = new ArrayList<>();
-
-        Tiered.ATTRIBUTE_DATA_LOADER.getItemAttributes().forEach((id, attribute) -> {
-            if (attribute.isValid(item)) {
-                potentialAttributes.add(id);
-            }
-        });
-
+        List<Identifier> potentialAttributes = getPotentialAttributesFor(item);
         if (!potentialAttributes.isEmpty()) {
             return potentialAttributes.get(RANDOM.nextInt(potentialAttributes.size()));
         } else {
@@ -34,15 +44,21 @@ public class ModifierUtils {
         }
     }
 
+    public static boolean isItemTierable(Item item) {
+        return !getPotentialAttributesFor(item).isEmpty();
+    }
+
     public static Identifier getTier(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return null;
         NbtComponent customData = stack.get(DataComponentTypes.CUSTOM_DATA);
-        if (customData != null) {
-            NbtCompound nbt = customData.copyNbt();
-            if (nbt.contains(Tiered.NBT_SUBTAG_KEY, NbtElement.COMPOUND_TYPE)) {
-                NbtCompound sub = nbt.getCompound(Tiered.NBT_SUBTAG_KEY);
-                if (sub.contains(Tiered.NBT_SUBTAG_DATA_KEY, NbtElement.STRING_TYPE)) {
-                    return Identifier.tryParse(sub.getString(Tiered.NBT_SUBTAG_DATA_KEY));
+        if (customData != null && !customData.isEmpty()) {
+            if (customData.contains(Tiered.NBT_SUBTAG_KEY)) {
+                NbtCompound nbt = customData.copyNbt();
+                if (nbt.contains(Tiered.NBT_SUBTAG_KEY, NbtElement.COMPOUND_TYPE)) {
+                    NbtCompound sub = nbt.getCompound(Tiered.NBT_SUBTAG_KEY);
+                    if (sub.contains(Tiered.NBT_SUBTAG_DATA_KEY, NbtElement.STRING_TYPE)) {
+                        return Identifier.tryParse(sub.getString(Tiered.NBT_SUBTAG_DATA_KEY));
+                    }
                 }
             }
         }

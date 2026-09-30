@@ -114,6 +114,7 @@ public class AttributeDataLoader implements SimpleSynchronousResourceReloadListe
         if (!readItemAttributes.isEmpty()) {
             itemAttributes.putAll(readItemAttributes);
         }
+        draylar.tiered.api.ModifierUtils.clearCache();
         LOGGER.info("Loaded {} tiered item attributes from resources", itemAttributes.size());
     }
 
