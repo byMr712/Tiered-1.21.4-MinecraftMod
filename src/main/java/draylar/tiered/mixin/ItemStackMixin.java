@@ -15,7 +15,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.Arrays;
 import java.util.function.BiConsumer;
 
 @Mixin(ItemStack.class)
@@ -33,21 +32,29 @@ public abstract class ItemStackMixin {
             PotentialAttribute potentialAttribute = Tiered.ATTRIBUTE_DATA_LOADER.getItemAttributes().get(tier);
 
             if (potentialAttribute != null && potentialAttribute.getAttributes() != null) {
-                potentialAttribute.getAttributes().forEach(template -> {
-                    // required equipment slots
-                    if (template.getRequiredEquipmentSlots() != null) {
-                        if (Arrays.asList(template.getRequiredEquipmentSlots()).contains(slot) && Tiered.isPreferredEquipmentSlot(self, slot)) {
-                            template.realize(attributeModifierConsumer, slot);
+                if (Tiered.isPreferredEquipmentSlot(self, slot)) {
+                    potentialAttribute.getAttributes().forEach(template -> {
+                        // required equipment slots
+                        if (template.getRequiredEquipmentSlots() != null) {
+                            for (EquipmentSlot reqSlot : template.getRequiredEquipmentSlots()) {
+                                if (reqSlot == slot) {
+                                    template.realize(attributeModifierConsumer, slot);
+                                    break;
+                                }
+                            }
                         }
-                    }
 
-                    // optional equipment slots
-                    if (template.getOptionalEquipmentSlots() != null) {
-                        if (Arrays.asList(template.getOptionalEquipmentSlots()).contains(slot) && Tiered.isPreferredEquipmentSlot(self, slot)) {
-                            template.realize(attributeModifierConsumer, slot);
+                        // optional equipment slots
+                        if (template.getOptionalEquipmentSlots() != null) {
+                            for (EquipmentSlot optSlot : template.getOptionalEquipmentSlots()) {
+                                if (optSlot == slot) {
+                                    template.realize(attributeModifierConsumer, slot);
+                                    break;
+                                }
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
         }
     }
@@ -87,4 +94,3 @@ public abstract class ItemStackMixin {
         }
     }
 }
-
